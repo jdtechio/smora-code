@@ -36,13 +36,13 @@ void SMORA::init(){
 
   /* Init testpads */
 #if defined(ARDUINO_SAMD_ZERO)
-  pinMode(TESTPAD_2_PIN, OUTPUT);
-  pinMode(TESTPAD_4_PIN, OUTPUT);
+  //pinMode(TESTPAD_2_PIN, OUTPUT);
+  //pinMode(TESTPAD_4_PIN, OUTPUT);
   pinMode(TESTPAD_5_PIN, OUTPUT);
-  pinMode(TESTPAD_6_PIN, OUTPUT);
+  //pinMode(TESTPAD_6_PIN, OUTPUT);
 #else
   pinMode(TESTPAD_1_PIN, OUTPUT);
-  pinMode(TESTPAD_2_PIN, OUTPUT);
+  //pinMode(TESTPAD_2_PIN, OUTPUT);
   pinMode(CTS_PIN, OUTPUT);
 #endif
 
@@ -150,6 +150,104 @@ void SMORA::init(){
   led_animation(125);
   mySerial.println("* Ready!"); 
 }
+
+byte SMORA::getEEPROMHighAddress(int memAddress){
+    return (byte)((memAddress) >> 8);
+}
+
+byte SMORA::getEEPROMLowAddress(int memAddress){
+    return (byte)(memAddress & 0xFF);
+}
+
+byte SMORA::getEEPROMDevAddress(int memAddress){
+    return E_24LC16BT_addr | (this->getEEPROMHighAddress(memAddress) & 0x07);
+}
+
+void SMORA::writeEEPROM(int memAddress, const byte data){
+  Wire.beginTransmission( getEEPROMDevAddress(memAddress) );
+  Wire.write( memAddress );
+  Wire.write(data);
+  Wire.endTransmission();
+  delay(5);
+}
+
+void SMORA::writeEEPROM(int memAddress, const byte* buffer, int length){
+    int page_i = 0;
+    uint8_t c = 0;
+    while (c < length){
+        Wire.beginTransmission( getEEPROMDevAddress(memAddress + c) );
+        Wire.write( getEEPROMLowAddress(memAddress + c) );
+        page_i = 0;
+        while ((page_i < 16) && (c < length)){
+            Wire.write(buffer[c]);
+            page_i++;
+            c++;
+        }
+        Wire.endTransmission();
+        delay(5);
+    }
+}
+
+byte SMORA::readEEPROM(int memAddress){
+    Wire.beginTransmission( getEEPROMDevAddress(memAddress) );
+    Wire.write( memAddress );
+    Wire.endTransmission();
+    byte rdata = 0x00;
+    Wire.requestFrom( getEEPROMDevAddress(memAddress), 1 );
+    if (Wire.available()) 
+    {
+        rdata = Wire.read();
+    }
+    return rdata;
+}
+
+void SMORA::readEEPROM(int memAddress, byte* buffer, int length){
+    Wire.beginTransmission( getEEPROMDevAddress(memAddress) );
+    Wire.write( getEEPROMLowAddress(memAddress) );
+    Wire.endTransmission();
+    Wire.requestFrom( getEEPROMDevAddress(memAddress), (byte)length );
+    int c = 0;
+    for ( c = 0; c < length; c++ )
+      if (Wire.available()) buffer[c] = Wire.read();
+}
+
+int SMORA::loadConfig() {
+  // To make sure there are settings, and they are YOURS!
+  // If nothing is found it will use the default settings.
+  // read first 4 bytes to get the CONFIG_VERSION
+  unsigned int i = 0;
+  unsigned long version;
+  byte version_buffer[4];
+
+  readEEPROM(CONFIG_START, version_buffer, 4);
+  version = (version_buffer[3]<<24) + (version_buffer[2]<<16) + (version_buffer[1]<<8) + (version_buffer[0]);
+
+  byte* data = (byte*)(void*)&storage;
+
+  if (version == CONFIG_VERSION){
+    for (i=0; i<sizeof(storage); i++)
+      *data++ = readEEPROM(CONFIG_START+i);
+  }
+  return i;
+}
+
+int SMORA::saveConfig() {
+  unsigned int i = 0;
+
+  if (sizeof(storage) > E_24LC16BT_size)
+    return -1;
+
+  const byte* data = (const byte*)(const void*)&storage;
+
+  for (i=0; i<sizeof(storage); i++)
+    writeEEPROM(CONFIG_START+i, *data++);
+  return i;
+}
+
+int SMORA::getConfigSize(){
+  return sizeof(storage);
+}
+
 
 float SMORA::getAngle_Degrees(){
   return as5048b.angleR(3, true); // U_DEG = 3

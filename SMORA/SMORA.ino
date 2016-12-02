@@ -4,15 +4,38 @@ SMORA smora;
 
 void setup() {
   smora.init();
-  //smora.test_sensors();
-  //Serial.println();
+  smora.test_sensors();
+  Serial.println();
   Serial.println("* Ready!");
+
+  /*
+  smora.storage.Speed_P = 0;
+  smora.storage.Speed_I = 2;
+  smora.storage.Speed_D = 4;
+  smora.storage.vars[0] = 23.1;
+  int size = smora.saveConfig();
+  Serial.print("Config save size:  "); Serial.println(size);
+  */
 }
+
+
 
 void loop() {
   // A-rev.1 - arduino nano 57600
   // A-rev.2 - arduino mini 115200
   // B-rev.1 - arduino zero (Native USB)
+
+  /*
+  Serial.print("Storage size: "); Serial.println(smora.getConfigSize());
+  smora.storage.vars[0] = 2.1;
+  int size = smora.loadConfig();
+  Serial.print("Config load size:  "); Serial.println(size);
+  Serial.print("Speed_P: "); Serial.println(smora.storage.Speed_P);
+  Serial.print("Speed_I: "); Serial.println(smora.storage.Speed_I);
+  Serial.print("Speed_D: "); Serial.println(smora.storage.Speed_D);
+  Serial.print("vars[0]: "); Serial.println(smora.storage.vars[0]);
+  delay(60000);
+  */
   
   //smora.led_animation(125);
   //smora.setRGB(BLUE);
@@ -52,6 +75,8 @@ void loop() {
   smora.setRGB(BLACK);
   
   delay(1000);*/
+
+  
   unsigned short pwm_value = 0;
   unsigned short count = 0;
   unsigned char start_byte;
@@ -80,7 +105,6 @@ void loop() {
     }
     smora.setRGB(BLACK);
   }
-    
 }
 
 

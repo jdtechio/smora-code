@@ -37,8 +37,9 @@
 #define AS5048B_addr    0x40
 // 24LC16BT I2C EEPROM
 #define E_24LC16BT_addr 0x50
+#define E_24LC16BT_size	2000 // bytes
 
-/* TestPad 1 PD5 connected to pin 4 of half-duplex connector */
+/* TestPad 1 PD5 connected to pin 4 of the half-duplex connector */
 #define TESTPAD_1_PIN   5
 /* TestPad 2 PD6 disconnected */
 #define TESTPAD_2_PIN   6

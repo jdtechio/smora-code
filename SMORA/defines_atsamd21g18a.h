@@ -36,10 +36,11 @@
 #define AS5048B_addr    0x40
 // 24LC16BT I2C EEPROM
 #define E_24LC16BT_addr 0x50
+#define E_24LC16BT_size	2000 // bytes
 
 #define TESTPAD_2_PIN   9		// PA07 - not connected
 #define TESTPAD_4_PIN   22		// PA12 - not connected
-#define TESTPAD_5_PIN	38 		// PA13 - not connected
+#define TESTPAD_5_PIN	38 		// PA13 - connected to pin 4 of half-duplex connector
 #define TESTPAD_6_PIN   4		// PA08 - not connected
 
 
