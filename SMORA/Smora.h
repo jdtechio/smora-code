@@ -67,9 +67,11 @@ class SMORA {
         int getConfigSize();
 
         void setRGB(unsigned char RGB);
-        void led_animation(unsigned int speed);
-        void test_sensors(void);
+        void ledAnimation(unsigned int speed);
+        void testSensors(void);
         
+        float unwrapAngleDegrees(float prevAngle, float newAngle);
+        float getVelocity(float prevAngle, float newAngle, float interval);
         float getAngle_Degrees(void);
         float getAngle_Radians(void);
         unsigned int getAngle_RAW(void);
@@ -91,6 +93,8 @@ class SMORA {
         void setMotorPWM(short pwm);
         void testMotor1(short pwm, short samples);
         void testMotorMovement(unsigned char d);
+
+        void testMotorIVW();
 };
 
 #endif // SMORA_H

@@ -4,18 +4,8 @@ SMORA smora;
 
 void setup() {
   smora.init();
-  smora.test_sensors();
-  Serial.println();
+  smora.testSensors();
   Serial.println("* Ready!");
-
-  /*
-  smora.storage.Speed_P = 0;
-  smora.storage.Speed_I = 2;
-  smora.storage.Speed_D = 4;
-  smora.storage.vars[0] = 23.1;
-  int size = smora.saveConfig();
-  Serial.print("Config save size:  "); Serial.println(size);
-  */
 }
 
 
@@ -26,6 +16,12 @@ void loop() {
   // B-rev.1 - arduino zero (Native USB)
 
   /*
+  smora.storage.Speed_P = 0;
+  smora.storage.Speed_I = 2;
+  smora.storage.Speed_D = 4;
+  smora.storage.vars[0] = 23.1;
+  int size = smora.saveConfig();
+  Serial.print("Config save size:  "); Serial.println(size);
   Serial.print("Storage size: "); Serial.println(smora.getConfigSize());
   smora.storage.vars[0] = 2.1;
   int size = smora.loadConfig();
@@ -37,7 +33,7 @@ void loop() {
   delay(60000);
   */
   
-  //smora.led_animation(125);
+  //smora.ledAnimation(125);
   //smora.setRGB(BLUE);
   //smora.testMotorMovement(1);
   //smora.setRGB(BLACK);
@@ -75,7 +71,13 @@ void loop() {
   smora.setRGB(BLACK);
   
   delay(1000);*/
-
+  /*
+  float prevAngle = 0;
+  float newAngle = 60;
+  float diff = smora.unwrapAngleDegrees(prevAngle, newAngle);
+  Serial.println(diff);
+  delay(5000);
+  */
   
   unsigned short pwm_value = 0;
   unsigned short count = 0;
@@ -94,6 +96,21 @@ void loop() {
       
       if (pwm_value <= 1023) {
         smora.testMotor1(pwm_value, count);
+      } else {
+        Serial.print("Error: "); 
+        Serial.print("#BYTES:"), Serial.print(availableBytes, DEC); Serial.print(',');
+        Serial.print("STARTBYTE:");Serial.print(start_byte, HEX); Serial.print(',');
+        Serial.print("PWM:"); Serial.print(pwm_value, DEC); Serial.print(',');
+        Serial.print("COUNT:"); Serial.print(count, DEC); Serial.println();
+        Serial.flush();
+      }
+    } else if (start_byte == 0xFE && availableBytes == 5){
+      Serial.read();
+      pwm_value = (Serial.read()<<8) + Serial.read();
+      count = (Serial.read()<<8) + Serial.read();
+      
+      if (pwm_value <= 1023) {
+        smora.testMotorIVW();
       } else {
         Serial.print("Error: "); 
         Serial.print("#BYTES:"), Serial.print(availableBytes, DEC); Serial.print(',');

@@ -147,8 +147,8 @@ void SMORA::init(){
   /* After all I2C sensors and initialized, switch frequency to TWI_FREQ */
   Wire.setClock(TWI_FREQ);
 
-  led_animation(125);
-  mySerial.println("* Ready!"); 
+  ledAnimation(125);
+  //mySerial.println("* Ready!"); 
 }
 
 byte SMORA::getEEPROMHighAddress(int memAddress){
@@ -248,6 +248,18 @@ int SMORA::getConfigSize(){
   return sizeof(storage);
 }
 
+float SMORA::unwrapAngleDegrees(float prevAngle, float newAngle){
+  float a = newAngle - prevAngle;
+  if (a > 180.0)
+    a -= 360.0;
+  if (a < -180.0)
+    a += 360.0;
+  return a;
+}
+
+float SMORA::getVelocity(float prevAngle, float newAngle, float interval){
+  return unwrapAngleDegrees(prevAngle, newAngle) / (interval / (float)1000000);
+}
 
 float SMORA::getAngle_Degrees(){
   return as5048b.angleR(3, true); // U_DEG = 3
@@ -368,7 +380,7 @@ void SMORA::setRGB(unsigned char RGB){
     digitalWrite(LED_B_PIN, HIGH);
 }
 
-void SMORA::led_animation(unsigned int speed){
+void SMORA::ledAnimation(unsigned int speed){
   setRGB(WHITE);  delay(speed);
   setRGB(YELLOW); delay(speed);
   setRGB(PURPLE); delay(speed);
@@ -379,7 +391,7 @@ void SMORA::led_animation(unsigned int speed){
   setRGB(BLACK);  delay(speed);
 }
 
-void SMORA::test_sensors(){
+void SMORA::testSensors(){
   unsigned char error;
 
   struct {
@@ -401,6 +413,7 @@ void SMORA::test_sensors(){
       mySerial.print("! UNKNOWN sensor "); mySerial.print(sensor[i].name); mySerial.print(" @ 0x"); mySerial.println(sensor[i].addr, HEX);
     }
   }
+  Serial.println();
 }
 
 void SMORA::readMPU6050(void){
@@ -500,12 +513,79 @@ void SMORA::testMotorMovement(unsigned char wait){
   }
 }
 
-/*
-void SMORA::init(void (*process_frame_function)(char, uint32_t, channels_t&),
-                      void (*serial_write_function)(uint8_t))
-{
-  process_frame = process_frame_function;
-  serial_write = serial_write_function;
-  frameState = -1;
+void SMORA::testMotorIVW(){
+  float newAngle = getAngle_Degrees();    // degrees
+  float prevAngle = getAngle_Degrees();   // degrees
+  float diffAngle = 0.0;
+  float current = getCurrent_mA();        // mA
+  float bus_voltage = getVoltage_V();     // V
+  float velocity = 0.0;                   // degrees/s
+  float instantVelocity = 0.0;
+  float alpha = 0.05;                     // averaging factor
+
+  unsigned short pwm = 31+32+32;
+  unsigned char samples = 50;
+  unsigned int count;
+  unsigned char turns = 1;
+  float voltage = 0.0;
+
+  unsigned long currentMicros = micros();   // us
+  unsigned long previousMicros = micros();  // us
+  const unsigned long interval = 50000;     // 50ms
+
+  setRGB(RED);
+  setMotorPWM(pwm);
+  delay(100);
+
+  while(pwm < 1024){
+    setMotorPWM(pwm);
+    prevAngle = getAngle_Degrees();
+    previousMicros = micros();
+    delay(100);
+    currentMicros = micros();
+    current = getCurrent_mA();
+    bus_voltage = getVoltage_V();
+    count = samples;
+
+    if(pwm > 415)
+      turns = 2;
+    else if (pwm > 831)
+      turns = 3;
+
+    //while(diffAngle < 360.0 && count < samples){
+    while(diffAngle < turns*360.0){
+      while(currentMicros - previousMicros < interval)
+        currentMicros = micros();
+      
+      newAngle = getAngle_Degrees();
+      current = (1-alpha)*current + alpha*getCurrent_mA();
+      bus_voltage = (1-alpha)*bus_voltage + alpha*getVoltage_V();
+
+      velocity = (1-alpha)*velocity + alpha*( getVelocity(prevAngle, newAngle, (float)interval) );
+
+      diffAngle += abs(unwrapAngleDegrees(prevAngle, newAngle));
+
+      prevAngle = newAngle;
+      previousMicros = currentMicros;
+      count++;
+    }
+
+    voltage = bus_voltage*(float)pwm/(float)1024;
+
+    Serial.print(pwm); Serial.print(',');
+    Serial.print(count); Serial.print(',');
+    Serial.print(voltage); Serial.print(',');
+    Serial.print(current); Serial.print(',');
+    Serial.print(bus_voltage); Serial.print(',');
+    Serial.print(velocity); Serial.println(); // Last conversion time for sensor measurements
+    Serial.flush();
+
+    pwm += 32;
+    diffAngle = 0.0;
+    count = 0;
+  }
+
+  setMotorPWM(0);
+  Serial.println("done");
+  setRGB(BLACK);
 }
-*/
