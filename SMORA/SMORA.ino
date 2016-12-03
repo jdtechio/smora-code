@@ -5,16 +5,27 @@ SMORA smora;
 void setup() {
   smora.init();
   smora.testSensors();
-  Serial.println("* Ready!");
+  NativeSerial.println("* Ready!");
 }
-
-
 
 void loop() {
   // A-rev.1 - arduino nano 57600
   // A-rev.2 - arduino mini 115200
   // B-rev.1 - arduino zero (Native USB)
 
+  /*
+  // code forhalf-duplex transmitter
+  smora.halfDuplexWrite('B');
+  delay(1000);
+
+  // code for half-duplex receiver
+  if (smora.halfDuplexAvailable()){
+    byte data = smora.halfDuplexRead();
+    //NativeSerial.write(data);   // For SMORA-XL
+    smora.halfDuplexWrite(data);  // for SMORA-L
+  }
+  */
+  
   /*
   smora.storage.Speed_P = 0;
   smora.storage.Speed_I = 2;
@@ -78,7 +89,7 @@ void loop() {
   Serial.println(diff);
   delay(5000);
   */
-  
+  /*
   unsigned short pwm_value = 0;
   unsigned short count = 0;
   unsigned char start_byte;
@@ -122,6 +133,7 @@ void loop() {
     }
     smora.setRGB(BLACK);
   }
+  */
 }
 
 

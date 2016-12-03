@@ -3,7 +3,8 @@
 
 #include <TimerOne.h>
 
-#define mySerial Serial
+#define HalfDuplex 		Serial
+#define NativeSerial	Serial
 
 /* Led pins and colors RGB*/
 #define LED_R_PIN       A1      // PC1
@@ -60,7 +61,7 @@
 #define TX_PIN          1
 #define DIR_PIN         3
 // Set DIR_PIN to HIGH to transmit and LOW to receive
-#define halfduplex_transmit()   digitalWrite(DIR_PIN, HIGH)
-#define halfduplex_receive()    digitalWrite(DIR_PIN, LOW)
+#define HalfDuplex_Transmit()   digitalWrite(DIR_PIN, HIGH)
+#define HalfDuplex_Receive()    digitalWrite(DIR_PIN, LOW)
 
 #endif // DEFINES_ATMEGA328P_H

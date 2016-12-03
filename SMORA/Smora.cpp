@@ -47,10 +47,14 @@ void SMORA::init(){
 #endif
 
   /* Serial */
-  Serial.begin(SERIAL_BAUDRATE);
+  NativeSerial.begin(SERIAL_BAUDRATE);
+  while (!NativeSerial);
+#if defined(ARDUINO_SAMD_ZERO)
+  HalfDuplex.begin(SERIAL_BAUDRATE);
+  while (!HalfDuplex);
+#endif
   pinMode(DIR_PIN, OUTPUT);
-  halfduplex_transmit();
-  //halfduplex_receive();
+  HalfDuplex_Receive();
 
   /* DS18B20 Temperature sensor */
   ds18b20.begin();
@@ -98,8 +102,6 @@ void SMORA::init(){
   // Enable the port multiplexer for the 2 PWM channels: timer TCC0, TCC1 and TCC2 outputs
   const uint8_t CHANNELS = 2;
   const uint8_t pwmPins[] = { M_PWM_PIN, M_DIR_PIN };
-  //const uint8_t CHANNELS = 8;
-  //const uint8_t pwmPins[] = { 2, 3, 4, 5, 6, 7, 11, 13 };
   for (uint8_t i = 0; i < CHANNELS; i++)
   {
      PORT->Group[g_APinDescription[pwmPins[i]].ulPort].PINCFG[g_APinDescription[pwmPins[i]].ulPin].bit.PMUXEN = 1;
@@ -142,13 +144,42 @@ void SMORA::init(){
   Timer1.pwm(TIMER1_B_PIN, 0);
   //Timer1.attachInterrupt(timer_interrupt);
 #endif
-  
 
   /* After all I2C sensors and initialized, switch frequency to TWI_FREQ */
   Wire.setClock(TWI_FREQ);
 
   ledAnimation(125);
-  //mySerial.println("* Ready!"); 
+}
+
+void SMORA::halfDuplexWrite(byte data){
+  HalfDuplex_Transmit();
+  HalfDuplex.write(data);
+#if defined(ARDUINO_SAMD_ZERO)
+  // Silly hack to get around a bug in the way flush is used in SAMD
+  // When only 1 byte is transmitted, flushUART() inside SERCOM.cpp returns without checking if the transmission is actually done
+  // This means that when HalfDuplex_Receive is called, the byte gets corrupted...
+  while(!SERCOM5->USART.INTFLAG.bit.TXC); 
+#else 
+  HalfDuplex.flush();
+#endif
+  HalfDuplex_Receive();
+}
+
+byte SMORA::halfDuplexRead(){
+  HalfDuplex_Receive();
+  return HalfDuplex.read();
+}
+
+byte SMORA::halfDuplexPeek(){
+  return HalfDuplex.peek();
+}
+
+int SMORA::halfDuplexAvailable(){
+  // Another silly workaround for SAMD
+  // For some reason calling HalfDuplex.available() followed by NativeSerial.write() hangs after reading 1 byte if not done as follows... Why?
+  HalfDuplex_Receive();
+  int data = HalfDuplex.available();
+  return data;
 }
 
 byte SMORA::getEEPROMHighAddress(int memAddress){
@@ -408,12 +439,11 @@ void SMORA::testSensors(){
     Wire.beginTransmission(sensor[i].addr);
     error = Wire.endTransmission();
     if (error == 0) {
-      mySerial.print("* Found sensor "); mySerial.print(sensor[i].name); mySerial.print(" @ 0x"); mySerial.println(sensor[i].addr, HEX);
+      NativeSerial.print("* Found sensor "); NativeSerial.print(sensor[i].name); NativeSerial.print(" @ 0x"); NativeSerial.println(sensor[i].addr, HEX);
     } else if (error == 2) {
-      mySerial.print("! UNKNOWN sensor "); mySerial.print(sensor[i].name); mySerial.print(" @ 0x"); mySerial.println(sensor[i].addr, HEX);
+      NativeSerial.print("! UNKNOWN sensor "); NativeSerial.print(sensor[i].name); NativeSerial.print(" @ 0x"); NativeSerial.println(sensor[i].addr, HEX);
     }
   }
-  Serial.println();
 }
 
 void SMORA::readMPU6050(void){
@@ -478,14 +508,14 @@ void SMORA::testMotor1(short pwm, short samples){
     // returns the RAW value in uint16_t. Needs to be multiplied by 0.01
     raw_bus_voltage = getVoltage_RAW();
     
-    Serial.print(currentMicros); Serial.print(',');
-    Serial.print(samples); Serial.print(',');
-    Serial.print(pwm); Serial.print(',');
-    Serial.print(raw_angle); Serial.print(',');
-    Serial.print(raw_current); Serial.print(',');
-    Serial.print(raw_bus_voltage); Serial.print(',');
-    Serial.print(micros()-currentMicros); Serial.println(); // Last conversion time for sensor measurements
-    Serial.flush();
+    NativeSerial.print(currentMicros); NativeSerial.print(',');
+    NativeSerial.print(samples); NativeSerial.print(',');
+    NativeSerial.print(pwm); NativeSerial.print(',');
+    NativeSerial.print(raw_angle); NativeSerial.print(',');
+    NativeSerial.print(raw_current); NativeSerial.print(',');
+    NativeSerial.print(raw_bus_voltage); NativeSerial.print(',');
+    NativeSerial.print(micros()-currentMicros); NativeSerial.println(); // Last conversion time for sensor measurements
+    NativeSerial.flush();
   }
   setMotorPWM(0);
   setRGB(BLACK);
@@ -572,13 +602,13 @@ void SMORA::testMotorIVW(){
 
     voltage = bus_voltage*(float)pwm/(float)1024;
 
-    Serial.print(pwm); Serial.print(',');
-    Serial.print(count); Serial.print(',');
-    Serial.print(voltage); Serial.print(',');
-    Serial.print(current); Serial.print(',');
-    Serial.print(bus_voltage); Serial.print(',');
-    Serial.print(velocity); Serial.println(); // Last conversion time for sensor measurements
-    Serial.flush();
+    NativeSerial.print(pwm); NativeSerial.print(',');
+    NativeSerial.print(count); NativeSerial.print(',');
+    NativeSerial.print(voltage); NativeSerial.print(',');
+    NativeSerial.print(current); NativeSerial.print(',');
+    NativeSerial.print(bus_voltage); NativeSerial.print(',');
+    NativeSerial.print(velocity); NativeSerial.println(); // Last conversion time for sensor measurements
+    NativeSerial.flush();
 
     pwm += 32;
     diffAngle = 0.0;
@@ -586,6 +616,6 @@ void SMORA::testMotorIVW(){
   }
 
   setMotorPWM(0);
-  Serial.println("done");
+  NativeSerial.println("done");
   setRGB(BLACK);
 }

@@ -1,8 +1,8 @@
 #ifndef DEFINES_ATMEGA328P_H
 #define DEFINES_ATMEGA328P_H
 
-#define mySerial 	SerialUSB
-#define Serial 		SerialUSB
+#define HalfDuplex 		Serial
+#define NativeSerial 	SerialUSB
 
 /* Led pins */
 #define LED_R_PIN       7      // PA21
@@ -58,7 +58,7 @@
 #define TX_PIN          30		// PB22
 #define DIR_PIN         26		// PA27
 // Set DIR_PIN to HIGH to transmit and LOW to receive
-#define halfduplex_transmit()   digitalWrite(DIR_PIN, HIGH)
-#define halfduplex_receive()    digitalWrite(DIR_PIN, LOW)
+#define HalfDuplex_Transmit()   digitalWrite(DIR_PIN, HIGH)
+#define HalfDuplex_Receive()    digitalWrite(DIR_PIN, LOW)
 
 #endif // DEFINES_ATMEGA328P_H

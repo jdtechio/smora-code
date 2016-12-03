@@ -25,7 +25,7 @@
 // Where to store the config data in EEPROM
 #define CONFIG_START 0
 
-class SMORA {
+class SMORA {    
     public:
         short ax, ay, az;
         short gx, gy, gz;
@@ -53,6 +53,11 @@ class SMORA {
         SMORA();
         //~SMORA();
         void init(void);
+
+        void halfDuplexWrite(byte);
+        byte halfDuplexRead(void);
+        byte halfDuplexPeek(void);
+        int halfDuplexAvailable(void);
 
         byte getEEPROMHighAddress(int memAddress);
         byte getEEPROMLowAddress(int memAddress);
