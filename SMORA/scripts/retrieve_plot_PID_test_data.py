@@ -77,6 +77,10 @@ for sample in buffer:
     currentAngle.append(sample['currentAngle'])
     temperature.append(sample['temperature'])
 
+for index in range(1,len(time)):
+    time[index] = time[index] - time[0]
+time[0] = 0
+
 title = "Kp=%.3f, Ki=%.3f, Kd=%.3f, F=%dHz, T=%.3f, d=%d, angle0=%.2f, angle1=%.2f" % (Kp, Ki, Kd, frequency, temperature[-1], duration, initAngle, finalAngle)
 sci.xtitle(title)
 sci.plot(time, goalAngle, 'b')
