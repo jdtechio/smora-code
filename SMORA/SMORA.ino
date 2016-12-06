@@ -4,15 +4,64 @@ SMORA smora;
 
 void setup() {
   smora.init();
-  smora.testSensors();
-  NativeSerial.println("* Ready!");
+  //smora.testSensors();
+  //smora.loadConfig();
+  smora.setPositionPID_Gains(10, 0, 0);
+  smora.setPositionPID_Frequency(100.0);
+  //int size = smora.saveConfig();
+  NativeSerial.println("* Ready");
 }
+
+/*
+float angle = 90.0;
+String inString = "";
+void serialEventRun(){
+  // Read serial input:
+  while (NativeSerial.available() > 0) {
+    int inChar = NativeSerial.read();
+    if (inChar != '\n') { 
+      inString += (char)inChar;
+    }
+    else {
+      angle = inString.toFloat();
+      inString = "";
+    }
+  }
+}
+*/
 
 void loop() {
   // A-rev.1 - arduino nano 57600
   // A-rev.2 - arduino mini 115200
   // B-rev.1 - arduino zero (Native USB)
+  
+  unsigned char start_byte;
+  unsigned char availableBytes = 0;
+  if (NativeSerial.available()>0) {
+    smora.setRGB(GREEN);
+    availableBytes = NativeSerial.available();
+    start_byte = NativeSerial.peek();
 
+    if (start_byte == 0xFB && availableBytes == 1+3*4+2){      // Set PID gains and frequency - 0xFB + Kp (float) + Ki (float) + Kd (float) + frequency (int)
+      NativeSerial.read();
+      byteFloat Kp = { .B={NativeSerial.read(), NativeSerial.read(), NativeSerial.read(), NativeSerial.read()} };
+      byteFloat Ki = { .B={NativeSerial.read(), NativeSerial.read(), NativeSerial.read(), NativeSerial.read()} };
+      byteFloat Kd = { .B={NativeSerial.read(), NativeSerial.read(), NativeSerial.read(), NativeSerial.read()} };
+      byteInt frequency = { .B={NativeSerial.read(), NativeSerial.read()} };
+      smora.setPositionPID_Gains(Kp.F, Ki.F, Kd.F);
+      smora.setPositionPID_Frequency((float)frequency.I);
+      NativeSerial.println("done");
+    } else if (start_byte == 0xFA && availableBytes == 1+2*4+2){ // Start PID plot - 0xFA + initAngle (float) + finalAngle (float) + test duration (int)
+      NativeSerial.read();
+      byteFloat initAngle = { .B={NativeSerial.read(), NativeSerial.read(), NativeSerial.read(), NativeSerial.read()} };
+      byteFloat finalAngle = { .B={NativeSerial.read(), NativeSerial.read(), NativeSerial.read(), NativeSerial.read()} };
+      byteInt duration = { .B={NativeSerial.read(), NativeSerial.read()} };
+      smora.plotPositionPID(initAngle.F, finalAngle.F, duration.I);
+      smora.resetPositionPID_Integrator();
+    }
+    smora.setRGB(BLACK);
+  }
+  
   /*
   // code forhalf-duplex transmitter
   smora.halfDuplexWrite('B');

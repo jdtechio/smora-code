@@ -25,29 +25,44 @@
 // Where to store the config data in EEPROM
 #define CONFIG_START 0
 
+typedef struct PIDstate {
+    float Input, Output, Reference;
+    float error, previous_error;
+    float integrator;
+} PIDstate;
+
+typedef struct PID {
+    float Kp, Ki, Kd;
+    float integrator_limit;
+    float frequency;
+    PIDstate state;
+} PID;
+
+typedef struct StoreStruct {
+    unsigned long version;
+    PID positionPID;
+} StoreStruct;
+
+typedef union byteFloat {
+    float F;
+    byte B[sizeof(float)];
+} byteFloat;
+
+typedef union byteInt {
+    int I;
+    byte B[sizeof(int)];
+} byteInt;
+
 class SMORA {    
     public:
         short ax, ay, az;
         short gx, gy, gz;
 
-        struct StoreStruct {
-            unsigned long version;
+        float temperature;
 
-            int16_t Speed_P;
-            int16_t Speed_I;
-            int16_t Speed_D;
-
-            int16_t Position_P;
-            int16_t Position_I;
-            int16_t Position_D;
-
-            float vars[6];
-        } storage = {
+        StoreStruct storage = {
           CONFIG_VERSION,
-          // The default values
-          0, 0, 0,
-          0, 0, 0,
-          {0.0, 0.0, 0.0, 0.0, 0.0, 0.0}
+          {40., 1., 1., 1023, 100., {0., 0., 0.,   0., 0.,   0.}}
         };
 
         SMORA();
@@ -100,6 +115,14 @@ class SMORA {
         void testMotorMovement(unsigned char d);
 
         void testMotorIVW();
+
+        void setPositionPID_Gains(float Kp, float Ki, float Kd);
+        void setPositionPID_Frequency(float frequency);
+        void resetPositionPID_Integrator(void);
+        void computePositionPID(float position);
+        short convertPositionPIDOutputToPWM(void);
+
+        void plotPositionPID(float initAngle, float finalAngle, unsigned int duration_ms);
 };
 
 #endif // SMORA_H

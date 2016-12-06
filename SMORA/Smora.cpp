@@ -48,10 +48,10 @@ void SMORA::init(){
 
   /* Serial */
   NativeSerial.begin(SERIAL_BAUDRATE);
-  while (!NativeSerial);
+  //while (!NativeSerial);
 #if defined(ARDUINO_SAMD_ZERO)
   HalfDuplex.begin(SERIAL_BAUDRATE);
-  while (!HalfDuplex);
+  //while (!HalfDuplex);
 #endif
   pinMode(DIR_PIN, OUTPUT);
   HalfDuplex_Receive();
@@ -100,8 +100,10 @@ void SMORA::init(){
   while (GCLK->STATUS.bit.SYNCBUSY);              // Wait for synchronization
 
   // Enable the port multiplexer for the 2 PWM channels: timer TCC0, TCC1 and TCC2 outputs
-  const uint8_t CHANNELS = 2;
-  const uint8_t pwmPins[] = { M_PWM_PIN, M_DIR_PIN };
+  //const uint8_t CHANNELS = 2;
+  //const uint8_t pwmPins[] = { M_PWM_PIN, M_DIR_PIN };
+  const uint8_t CHANNELS = 1;
+  const uint8_t pwmPins[] = { M_PWM_PIN };
   for (uint8_t i = 0; i < CHANNELS; i++)
   {
      PORT->Group[g_APinDescription[pwmPins[i]].ulPort].PINCFG[g_APinDescription[pwmPins[i]].ulPin].bit.PMUXEN = 1;
@@ -132,8 +134,8 @@ void SMORA::init(){
   // Set the PWM signal to output 0% duty cycle
   REG_TCC2_CCB0 = 0;         // TCC2 CCB0 - M_PWM_PIN 11
   while (TCC2->SYNCBUSY.bit.CCB0);                // Wait for synchronization
-  REG_TCC2_CCB1 = 0;         // TCC2 CCB1 - M_DIR_PIN 13
-  while (TCC2->SYNCBUSY.bit.CCB1);                // Wait for synchronization
+  //REG_TCC2_CCB1 = 0;         // TCC2 CCB1 - M_DIR_PIN 13
+  //while (TCC2->SYNCBUSY.bit.CCB1);                // Wait for synchronization
   
   // Divide the 48MHz signal by 1 giving 48MHz (20.83ns) TCC2 timer tick and enable the outputs
   REG_TCC2_CTRLA |= TCC_CTRLA_PRESCALER_DIV1 |    // Divide GCLK4 by 1
@@ -148,6 +150,7 @@ void SMORA::init(){
   /* After all I2C sensors and initialized, switch frequency to TWI_FREQ */
   Wire.setClock(TWI_FREQ);
 
+  temperature = getTemperatureBlocking();
   ledAnimation(125);
 }
 
@@ -616,6 +619,103 @@ void SMORA::testMotorIVW(){
   }
 
   setMotorPWM(0);
+  NativeSerial.println("done");
+  setRGB(BLACK);
+}
+
+void SMORA::setPositionPID_Gains(float Kp, float Ki, float Kd){
+  PID* controller = &(storage).positionPID;
+  controller->Kp = Kp;
+  controller->Ki = Ki;
+  controller->Kd = Kd;
+}
+
+void SMORA::setPositionPID_Frequency(float frequency){
+  PID* controller = &(storage).positionPID;
+  controller->frequency = frequency;
+}
+
+void SMORA::resetPositionPID_Integrator(){
+  PID* controller = &(storage).positionPID;
+  PIDstate* state = &(*controller).state;
+  state->integrator = 0.;
+}
+
+void SMORA::computePositionPID(float position){
+  PID* controller = &(storage).positionPID;
+  PIDstate* state = &(*controller).state;
+
+  state->Input = position;
+  state->Reference = getAngle_Degrees();
+
+  state->previous_error = state->error;
+  state->error = state->Input - state->Reference;
+  state->integrator += state->error;
+
+  if (state->integrator > controller->integrator_limit){
+    state->integrator = controller->integrator_limit;
+  } else if (state->integrator < -controller->integrator_limit){
+    state->integrator = -controller->integrator_limit;
+  }
+
+  state->Output  = controller->Kp * state->error;
+  state->Output += controller->Ki * state->integrator / controller->frequency;
+  state->Output += controller->Kd * (state->error - state->previous_error) * controller->frequency;
+}
+
+short SMORA::convertPositionPIDOutputToPWM(){
+  PID* controller = &(storage).positionPID;
+  PIDstate* state = &(*controller).state;
+  return (short)(state->Output/360.0*1023.0);
+}
+
+void SMORA::plotPositionPID(float initAngle, float finalAngle, unsigned int duration_ms){
+  PID* controller = &(storage).positionPID;
+  PIDstate* state = &(*controller).state;
+
+  unsigned int freq = (unsigned int)controller->frequency;  // Hz
+  unsigned long intervalMillis = 1000/freq;                 // ms
+  unsigned long currentMillis, previousMillis;
+  unsigned int stepDuration = duration_ms;                 // ms
+  unsigned long count = 0;
+  short pwm = 0;
+  float current_angle, desired_angle;
+  unsigned char test_state = 0;
+
+  currentMillis = millis();
+  previousMillis = millis();
+
+  setRGB(RED);
+  while(test_state <= 4){
+    if (test_state%2 == 0) {      // if state is odd, set motor to finalAngle for stepDuration second
+      desired_angle = finalAngle;
+    } else {                      // if state is even, set motor to initAngle for stepDuration second
+      desired_angle = initAngle;
+    }
+
+    current_angle = getAngle_Degrees();
+    computePositionPID(desired_angle);
+    pwm = convertPositionPIDOutputToPWM();
+    setMotorPWM(pwm);
+
+    NativeSerial.print(currentMillis); NativeSerial.print(",");
+    NativeSerial.print(desired_angle); NativeSerial.print(",");
+    NativeSerial.print(current_angle); NativeSerial.print(",");
+    NativeSerial.print(temperature); NativeSerial.println();
+
+    while(currentMillis - previousMillis < intervalMillis)
+        currentMillis = millis();
+    previousMillis = currentMillis;
+
+    count++;
+
+    if (count*intervalMillis > stepDuration){
+      count = 0;
+      test_state++;
+      temperature = getTemperature();
+      requestTemperatureConversion();
+    }
+  }
   NativeSerial.println("done");
   setRGB(BLACK);
 }
