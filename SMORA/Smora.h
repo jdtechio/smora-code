@@ -27,20 +27,40 @@
 
 typedef struct PIDstate {
     float Input, Output, Reference;
+    float PIDOutput, FeedforwardOutput;
     float error, previous_error;
     float integrator;
 } PIDstate;
 
 typedef struct PID {
-    float Kp, Ki, Kd;
+    float Kp, Ki, Kd, Kf;
     float integrator_limit;
     float frequency;
     PIDstate state;
 } PID;
 
+typedef struct PIVstate {
+    float Input, Output, Reference;
+    float PIVOutput, FeedforwardOutput;
+    float position_error, previous_position_error;
+    float speed_error, previous_speed_error;
+    float position, previous_position;
+    float speed, previous_speed;
+    float integrator;
+};
+
+typedef struct PIV {
+    float Kp, Ki, Kv, Kf;
+    float speed_limit;
+    float frequency;
+    PIVstate state;
+} PIV;
+
 typedef struct StoreStruct {
     unsigned long version;
     PID positionPID;
+    PID speedPID;
+    PIV speedPIV;
 } StoreStruct;
 
 typedef union byteFloat {
@@ -53,17 +73,28 @@ typedef union byteInt {
     byte B[sizeof(int)];
 } byteInt;
 
+typedef struct ATTITUDE {
+    short ax, ay, az;
+    short gx, gy, gz;
+} ATTITUDE;
+
 class SMORA {    
     public:
-        short ax, ay, az;
-        short gx, gy, gz;
-
         float temperature;
+
+        ATTITUDE motion;
 
         StoreStruct storage = {
           CONFIG_VERSION,
-          {40., 1., 1., 1023, 100., {0., 0., 0.,   0., 0.,   0.}}
+          {40., 2., 1., 1.,  360.0, 100., {0., 0., 0.,   0., 0.,   0., 0.,   0.}},
+          {40., 2., 1., 1.,  250.0, 100., {0., 0., 0.,   0., 0.,   0., 0.,   0.}},
+          
+          { 1., 1., 1., 0.,  100.,  100., {0., 0., 0.,   0., 0.,   0., 0.,   0., 0.,   0., 0.,  0., 0.,  0.}}
         };
+
+        PID* positionPID = &(storage).positionPID;
+        PID* speedPID = &(storage).speedPID;
+        PIV* speedPIV = &(storage).speedPIV;
 
         SMORA();
         //~SMORA();
@@ -108,21 +139,36 @@ class SMORA {
         bool isTemperatureAvailable(void);
         unsigned long timeTemperatureConversion(void);
 
-        void readMPU6050(void);
+        void getAttitude(void);
 
-        void setMotorPWM(short pwm);
-        void testMotor1(short pwm, short samples);
+        void setMotorPWM(int pwm);
+        void testMotor1(int pwm, unsigned int samples);
         void testMotorMovement(unsigned char d);
 
         void testMotorIVW();
 
-        void setPositionPID_Gains(float Kp, float Ki, float Kd);
-        void setPositionPID_Frequency(float frequency);
-        void resetPositionPID_Integrator(void);
-        void computePositionPID(float position);
-        short convertPositionPIDOutputToPWM(void);
+        void setPIDGains(PID* controller, float Kp, float Ki, float Kd, float Kf);
+        void setPIDFrequency(PID* controller, float frequency);
+        void resetPIDIntegrator(PID* controller);
+        void computePID(PID* controller, float input, float reference);
+        int convertPIDOutputToPWM(PID* controller);
 
-        void plotPositionPID(float initAngle, float finalAngle, unsigned int duration_ms);
+        void testPositionPID(float initAngle, float finalAngle, unsigned int duration_ms);
+        void positionPIDTest(void);
+
+        void testSpeedPID(float initSpeed, float finalSpeed, unsigned int duration_ms);
+        void speedPIDTest(void);
+
+        void setPIVGains(PIV* controller, float Kp, float Ki, float Kv, float Kf);
+        void setPIVFrequency(PIV* controller, float frequency);
+        void setPIVSpeed(PIV* controller, float speed);
+        void resetPIVIntegrator(PIV* controller);
+        void computePIV(PIV* controller, float reference, float input);
+        int convertPIVOutputToPWM(PIV* controller);
+
+        void testspeedPIV(float initAngle, float finalAngle, unsigned int duration_ms);
+        void speedPIVTest(void);
+
 };
 
 #endif // SMORA_H

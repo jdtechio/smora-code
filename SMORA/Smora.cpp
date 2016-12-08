@@ -449,11 +449,11 @@ void SMORA::testSensors(){
   }
 }
 
-void SMORA::readMPU6050(void){
-  mpu6050.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+void SMORA::getAttitude(void){
+  mpu6050.getMotion6(&motion.ax, &motion.ay, &motion.az, &motion.gx, &motion.gy, &motion.gz);
 }
 
-void SMORA::setMotorPWM(short pwm){
+void SMORA::setMotorPWM(int pwm){
   bool reverse = 0;
   
   if (pwm < 0){
@@ -475,10 +475,10 @@ void SMORA::setMotorPWM(short pwm){
     digitalWrite(M_DIR_PIN, LOW);
 }
 
-void SMORA::testMotor1(short pwm, short samples){
-  unsigned short raw_angle = 0;
-  unsigned short raw_current = 0;
-  unsigned short raw_bus_voltage = 0;
+void SMORA::testMotor1(int pwm, unsigned int samples){
+  unsigned int raw_angle = 0;
+  unsigned int raw_current = 0;
+  unsigned int raw_bus_voltage = 0;
 
   unsigned long currentMicros = micros();   // us
   unsigned long previousMicros = micros();  // us
@@ -556,7 +556,7 @@ void SMORA::testMotorIVW(){
   float instantVelocity = 0.0;
   float alpha = 0.05;                     // averaging factor
 
-  unsigned short pwm = 31+32+32;
+  unsigned int pwm = 31+32+32;
   unsigned char samples = 50;
   unsigned int count;
   unsigned char turns = 1;
@@ -623,53 +623,57 @@ void SMORA::testMotorIVW(){
   setRGB(BLACK);
 }
 
-void SMORA::setPositionPID_Gains(float Kp, float Ki, float Kd){
-  PID* controller = &(storage).positionPID;
+void SMORA::setPIDGains(PID* controller, float Kp, float Ki, float Kd, float Kf){
   controller->Kp = Kp;
   controller->Ki = Ki;
   controller->Kd = Kd;
+  controller->Kf = Kf;
 }
 
-void SMORA::setPositionPID_Frequency(float frequency){
-  PID* controller = &(storage).positionPID;
+void SMORA::setPIDFrequency(PID* controller, float frequency){
   controller->frequency = frequency;
 }
 
-void SMORA::resetPositionPID_Integrator(){
-  PID* controller = &(storage).positionPID;
+void SMORA::resetPIDIntegrator(PID* controller){
   PIDstate* state = &(*controller).state;
   state->integrator = 0.;
 }
 
-void SMORA::computePositionPID(float position){
-  PID* controller = &(storage).positionPID;
+void SMORA::computePID(PID* controller, float input, float reference){
   PIDstate* state = &(*controller).state;
 
-  state->Input = position;
-  state->Reference = getAngle_Degrees();
+  //state->Input = position;
+  //state->Reference = getAngle_Degrees();
+  state->Input = input;
+  state->Reference = reference;
 
   state->previous_error = state->error;
-  state->error = state->Input - state->Reference;
+  //state->error = state->Input - state->Reference;
+  state->error = unwrapAngleDegrees(state->Reference, state->Input);
   state->integrator += state->error;
 
+  // anti-windup
   if (state->integrator > controller->integrator_limit){
     state->integrator = controller->integrator_limit;
   } else if (state->integrator < -controller->integrator_limit){
     state->integrator = -controller->integrator_limit;
   }
 
-  state->Output  = controller->Kp * state->error;
-  state->Output += controller->Ki * state->integrator / controller->frequency;
-  state->Output += controller->Kd * (state->error - state->previous_error) * controller->frequency;
+  state->PIDOutput  = controller->Kp * state->error;
+  state->PIDOutput += controller->Ki * state->integrator / controller->frequency;                       // same as *dt
+  state->PIDOutput += controller->Kd * (state->error - state->previous_error) * controller->frequency;  // same as /dt
+
+  state->FeedforwardOutput = controller->Kf * state->Reference;
+
+  state->Output = state->FeedforwardOutput + state->PIDOutput;
 }
 
-short SMORA::convertPositionPIDOutputToPWM(){
-  PID* controller = &(storage).positionPID;
+int SMORA::convertPIDOutputToPWM(PID* controller){
   PIDstate* state = &(*controller).state;
-  return (short)(state->Output/360.0*1023.0);
+  return (int)(state->Output/360.0*1023.0);
 }
 
-void SMORA::plotPositionPID(float initAngle, float finalAngle, unsigned int duration_ms){
+void SMORA::testPositionPID(float initAngle, float finalAngle, unsigned int duration_ms){
   PID* controller = &(storage).positionPID;
   PIDstate* state = &(*controller).state;
 
@@ -678,7 +682,7 @@ void SMORA::plotPositionPID(float initAngle, float finalAngle, unsigned int dura
   unsigned long currentMillis, previousMillis;
   unsigned int stepDuration = duration_ms;                 // ms
   unsigned long count = 0;
-  short pwm = 0;
+  int pwm = 0;
   float current_angle, desired_angle;
   unsigned char test_state = 0;
 
@@ -694,13 +698,248 @@ void SMORA::plotPositionPID(float initAngle, float finalAngle, unsigned int dura
     }
 
     current_angle = getAngle_Degrees();
-    computePositionPID(desired_angle);
-    pwm = convertPositionPIDOutputToPWM();
+    computePID(controller, desired_angle, current_angle);
+    pwm = convertPIDOutputToPWM(controller);
     setMotorPWM(pwm);
 
     NativeSerial.print(currentMillis); NativeSerial.print(",");
     NativeSerial.print(desired_angle); NativeSerial.print(",");
     NativeSerial.print(current_angle); NativeSerial.print(",");
+    NativeSerial.print(state->Output); NativeSerial.print(",");
+    NativeSerial.print(temperature); NativeSerial.println();
+
+    while(currentMillis - previousMillis < intervalMillis)
+        currentMillis = millis();
+    previousMillis = currentMillis;
+
+    count++;
+
+    if (count*intervalMillis > stepDuration){
+      count = 0;
+      test_state++;
+      temperature = getTemperature();
+      requestTemperatureConversion();
+    }
+  }
+  setMotorPWM(0);
+  NativeSerial.println("done");
+  setRGB(BLACK);
+}
+
+void SMORA::positionPIDTest(){
+  unsigned char start_byte;
+  unsigned char availableBytes = 0;
+  if (NativeSerial.available()>0) {
+    setRGB(GREEN);
+    availableBytes = NativeSerial.available();
+    start_byte = NativeSerial.peek();
+
+    if (start_byte == 0xFB && availableBytes == 1+3*4+2){      // Set PID gains and frequency - 0xFB + Kp (float) + Ki (float) + Kd (float) + frequency (int)
+      NativeSerial.read();
+      byteFloat Kp = { .B={NativeSerial.read(), NativeSerial.read(), NativeSerial.read(), NativeSerial.read()} };
+      byteFloat Ki = { .B={NativeSerial.read(), NativeSerial.read(), NativeSerial.read(), NativeSerial.read()} };
+      byteFloat Kd = { .B={NativeSerial.read(), NativeSerial.read(), NativeSerial.read(), NativeSerial.read()} };
+      byteInt frequency = { .B={NativeSerial.read(), NativeSerial.read()} };
+      setPIDGains(positionPID, Kp.F, Ki.F, Kd.F, 0.0);
+      setPIDFrequency(positionPID, (float)frequency.I);
+      NativeSerial.println("done");      
+    } else if (start_byte == 0xFA && availableBytes == 1+2*4+2){ // Start PID plot - 0xFA + initAngle (float) + finalAngle (float) + test duration (int)
+      NativeSerial.read();
+      byteFloat initAngle = { .B={NativeSerial.read(), NativeSerial.read(), NativeSerial.read(), NativeSerial.read()} };
+      byteFloat finalAngle = { .B={NativeSerial.read(), NativeSerial.read(), NativeSerial.read(), NativeSerial.read()} };
+      byteInt duration = { .B={NativeSerial.read(), NativeSerial.read()} };
+      testPositionPID(initAngle.F, finalAngle.F, duration.I);
+      resetPIDIntegrator(positionPID);
+    }
+    setRGB(BLACK);
+  }
+}
+
+
+void SMORA::testSpeedPID(float initSpeed, float finalSpeed, unsigned int duration_ms){
+  PID* controller = &(storage).speedPID;
+  PIDstate* state = &(*controller).state;
+
+  unsigned int freq = (unsigned int)controller->frequency;  // Hz
+  unsigned long intervalMillis = 1000/freq;                 // ms
+  unsigned long currentMillis, previousMillis;
+  unsigned int stepDuration = duration_ms;                 // ms
+  unsigned long count = 0;
+  int pwm = 0;
+  float current_speed, desired_speed;
+  float previous_position, current_position;
+  unsigned char test_state = 0;
+
+  currentMillis = millis();
+  previousMillis = millis();
+  previous_position = current_position = getAngle_Degrees();
+  delay(100);
+
+  setRGB(RED);
+  while(test_state <= 4){
+    if (test_state%2 == 0) {      // if state is odd, set motor to finalAngle for stepDuration second
+      desired_speed = finalSpeed;
+    } else {                      // if state is even, set motor to initAngle for stepDuration second
+      desired_speed = initSpeed;
+    }
+
+    previous_position = current_position;
+    current_position = getAngle_Degrees();
+    current_speed = abs((1-0.1)*current_speed + 0.1 * unwrapAngleDegrees(previous_position, current_position) * controller->frequency);
+    //current_speed = unwrapAngleDegrees(previous_position, current_position) * controller->frequency;
+
+    computePID(controller, desired_speed, current_speed);
+    //pwm = (state->Output)/(controller->integrator_limit)*1023.0;
+    pwm = (state->Output)/(controller->integrator_limit)*1023.0;
+
+    setMotorPWM(pwm);
+
+    NativeSerial.print(currentMillis); NativeSerial.print(",");
+    NativeSerial.print(desired_speed); NativeSerial.print(",");
+    NativeSerial.print(current_speed); NativeSerial.print(",");
+    NativeSerial.print(state->Output); NativeSerial.print(",");
+    NativeSerial.print(temperature); NativeSerial.println();
+
+    while(currentMillis - previousMillis < intervalMillis)
+        currentMillis = millis();
+    previousMillis = currentMillis;
+
+    count++;
+
+    if (count*intervalMillis > stepDuration){
+      count = 0;
+      test_state++;
+      temperature = getTemperature();
+      requestTemperatureConversion();
+    }
+  }
+  setMotorPWM(0);
+  NativeSerial.println("done");
+  setRGB(BLACK);
+}
+
+void SMORA::speedPIDTest(){
+  unsigned char start_byte;
+  unsigned char availableBytes = 0;
+  if (NativeSerial.available()>0) {
+    setRGB(GREEN);
+    availableBytes = NativeSerial.available();
+    start_byte = NativeSerial.peek();
+
+    if (start_byte == 0xFB && availableBytes == 1+3*4+2){      // Set PID gains and frequency - 0xFB + Kp (float) + Ki (float) + Kd (float) + frequency (int)
+      NativeSerial.read();
+      byteFloat Kp = { .B={NativeSerial.read(), NativeSerial.read(), NativeSerial.read(), NativeSerial.read()} };
+      byteFloat Ki = { .B={NativeSerial.read(), NativeSerial.read(), NativeSerial.read(), NativeSerial.read()} };
+      byteFloat Kd = { .B={NativeSerial.read(), NativeSerial.read(), NativeSerial.read(), NativeSerial.read()} };
+      byteInt frequency = { .B={NativeSerial.read(), NativeSerial.read()} };
+      setPIDGains(speedPID, Kp.F, Ki.F, Kd.F, 0.0);
+      setPIDFrequency(speedPID, (float)frequency.I);
+      NativeSerial.println("done");      
+    } else if (start_byte == 0xFA && availableBytes == 1+2*4+2){ // Start PID plot - 0xFA + initAngle (float) + finalAngle (float) + test duration (int)
+      NativeSerial.read();
+      byteFloat initSpeed = { .B={NativeSerial.read(), NativeSerial.read(), NativeSerial.read(), NativeSerial.read()} };
+      byteFloat finalSpeed = { .B={NativeSerial.read(), NativeSerial.read(), NativeSerial.read(), NativeSerial.read()} };
+      byteInt duration = { .B={NativeSerial.read(), NativeSerial.read()} };
+      testSpeedPID(initSpeed.F, finalSpeed.F, duration.I);
+      resetPIDIntegrator(speedPID);
+    }
+    setRGB(BLACK);
+  }
+}
+
+
+
+void SMORA::setPIVGains(PIV* controller, float Kp, float Ki, float Kv, float Kf){
+  controller->Kp = Kp;
+  controller->Ki = Ki;
+  controller->Kv = Kv;
+  controller->Kf = Kf;
+}
+
+void SMORA::setPIVFrequency(PIV* controller, float frequency){
+  controller->frequency = frequency;
+}
+
+void SMORA::setPIVSpeed(PIV* controller, float speed){
+  controller->speed_limit = speed;
+}
+
+void SMORA::resetPIVIntegrator(PIV* controller){
+  PIVstate* state = &(*controller).state;
+  state->integrator = 0.;
+}
+
+void SMORA::computePIV(PIV* controller, float reference, float input){
+  PIVstate* state = &(*controller).state;
+  state->Input = input;         // feedback
+  state->Reference = reference; // set-point
+
+  state->previous_position_error = state->position_error;
+  state->position_error = state->Reference - state->Input;
+  
+  state->previous_position = state->position;
+  state->position = state->Input;
+  
+  state->previous_speed = state->speed;
+  state->speed = unwrapAngleDegrees(state->previous_position, state->position) * controller->frequency;
+
+  state->previous_speed_error = state->speed_error;
+  state->speed_error = ( state->position_error * controller->Kp ) - state->speed;
+  state->integrator += state->speed_error;
+
+  /*if (state->integrator > controller->speed_limit){
+    state->integrator = controller->speed_limit;
+  } else if (state->integrator < -controller->speed_limit){
+    state->integrator = -controller->speed_limit;
+  }*/
+
+  state->PIVOutput = controller->Ki * state->integrator;
+  state->PIVOutput -= controller->Kv * state->speed;
+
+  //state->FeedforwardOutput = controller->Kf * controller->speed_limit;
+
+  //state->Output = state->FeedforwardOutput + state->PIVOutput;
+  state->Output = state->PIVOutput;
+}
+
+int SMORA::convertPIVOutputToPWM(PIV* controller){
+  PIVstate* state = &(*controller).state;
+  return (int)(state->Output/360.0*1023.0);
+}
+
+void SMORA::testspeedPIV(float initAngle, float finalAngle, unsigned int duration_ms){
+  PIV* controller = &(storage).speedPIV;
+  PIVstate* state = &(*controller).state;
+
+  unsigned int freq = (unsigned int)controller->frequency;  // Hz
+  unsigned long intervalMillis = 1000/freq;                 // ms
+  unsigned long currentMillis, previousMillis;
+  unsigned int stepDuration = duration_ms;                 // ms
+  unsigned long count = 0;
+  int pwm = 0;
+  float current_angle, desired_angle;
+  unsigned char test_state = 0;
+
+  currentMillis = millis();
+  previousMillis = millis();
+
+  setRGB(RED);
+  while(test_state <= 4){
+    if (test_state%2 == 0) {      // if state is odd, set motor to finalAngle for stepDuration second
+      desired_angle = finalAngle;
+    } else {                      // if state is even, set motor to initAngle for stepDuration second
+      desired_angle = initAngle;
+    }
+
+    current_angle = getAngle_Degrees();
+    computePIV(controller, desired_angle, current_angle);
+    pwm = convertPIVOutputToPWM(controller);
+    setMotorPWM(pwm);
+
+    NativeSerial.print(currentMillis); NativeSerial.print(",");
+    NativeSerial.print(desired_angle); NativeSerial.print(",");
+    NativeSerial.print(current_angle); NativeSerial.print(",");
+    NativeSerial.print(state->Output); NativeSerial.print(",");
     NativeSerial.print(temperature); NativeSerial.println();
 
     while(currentMillis - previousMillis < intervalMillis)
@@ -718,4 +957,35 @@ void SMORA::plotPositionPID(float initAngle, float finalAngle, unsigned int dura
   }
   NativeSerial.println("done");
   setRGB(BLACK);
+}
+
+void SMORA::speedPIVTest(){
+  unsigned char start_byte;
+  unsigned char availableBytes = 0;
+  if (NativeSerial.available()>0) {
+    setRGB(GREEN);
+    availableBytes = NativeSerial.available();
+    start_byte = NativeSerial.peek();
+
+    if (start_byte == 0xF0 && availableBytes == 1+3*4+2+2){      // Set PIV gains and frequency - 0xF0 + Kp (float) + Ki (float) + Kv (float) + frequency (int) + speed_limit (int)
+      NativeSerial.read();
+      byteFloat Kp = { .B={NativeSerial.read(), NativeSerial.read(), NativeSerial.read(), NativeSerial.read()} };
+      byteFloat Ki = { .B={NativeSerial.read(), NativeSerial.read(), NativeSerial.read(), NativeSerial.read()} };
+      byteFloat Kv = { .B={NativeSerial.read(), NativeSerial.read(), NativeSerial.read(), NativeSerial.read()} };
+      byteInt frequency = { .B={NativeSerial.read(), NativeSerial.read()} };
+      byteInt speed_limit = { .B={NativeSerial.read(), NativeSerial.read()} };
+      setPIVGains(speedPIV, Kp.F, Ki.F, Kv.F, 0.0);
+      setPIVFrequency(speedPIV, (float)frequency.I);
+      setPIVSpeed(speedPIV, (float)speed_limit.I);
+      NativeSerial.println("done");      
+    } else if (start_byte == 0xF1 && availableBytes == 1+2*4+2){ // Start PIV plot - 0xF1 + initAngle (float) + finalAngle (float) + test duration (int)
+      NativeSerial.read();
+      byteFloat initAngle = { .B={NativeSerial.read(), NativeSerial.read(), NativeSerial.read(), NativeSerial.read()} };
+      byteFloat finalAngle = { .B={NativeSerial.read(), NativeSerial.read(), NativeSerial.read(), NativeSerial.read()} };
+      byteInt duration = { .B={NativeSerial.read(), NativeSerial.read()} };
+      testspeedPIV(initAngle.F, finalAngle.F, duration.I);
+      resetPIVIntegrator(speedPIV);
+    }
+    setRGB(BLACK);
+  }
 }
