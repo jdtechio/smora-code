@@ -12,9 +12,9 @@ sci = Scilab2Py()
 #SMORA = 'L'
 SMORA = 'XL'
 
-def set_PID_parameters(Kp, Ki, Kd, frequency):
+def set_PID_parameters(Kp, Ki, Kd, Kf, frequency):
     print "* Sending bytes..."
-    ser.write(struct.pack("<BfffH", 0xFB, float(Kp), float(Ki), float(Kd), frequency))
+    ser.write(struct.pack("<BffffH", 0xFB, float(Kp), float(Ki), float(Kd), float(Kf), frequency))
     print "* Waiting for answer..."
     while 1:
         data = ser.readline().strip()
@@ -26,8 +26,9 @@ def retrieve_PID_samples(initSpeed, finalSpeed, duration):
     print "* Sending bytes..."
     ser.write(struct.pack("<BffH", 0xFA, initSpeed, finalSpeed, duration))
     print "* Waiting for answer..."
+    count = 0
     while 1:
-        # currentMillis, desired_speed, current_speed, pidOutput, temperature
+        # millis, goalSpeed, currentSpeed, pidOutput, temperature, cycle_duration
         data = ser.readline().strip()
         if 'done' in data:
             break
@@ -36,14 +37,18 @@ def retrieve_PID_samples(initSpeed, finalSpeed, duration):
         goalSpeed, currentSpeed = float(data[1]), float(data[2])
         pidOutput = float(data[3])
         temperature = float(data[4])
+        cycle_duration = int(data[5])
+        dtMicros = int(data[6])
         buffer.append({
             'time': millis,
             'goalSpeed': goalSpeed,
             'currentSpeed': currentSpeed,
             'pidOutput': pidOutput,
-            'temperature': temperature
+            'temperature': temperature,
+            'cycle_duration': cycle_duration
         })
-        print millis, goalSpeed, currentSpeed, pidOutput, temperature
+        print count, '\t', millis, '\t', goalSpeed, '\t', currentSpeed, '\t', pidOutput, '\t', temperature, '\t', cycle_duration/1000.0, 'ms', '\t', dtMicros, 'us'
+        count += 1
 
 if SMORA == 'L':
     print "* Opening port..."
@@ -55,18 +60,20 @@ if SMORA == 'L':
             break
 elif SMORA == 'XL':
     print "* Opening port..."
-    ser = serial.Serial('/dev/cu.usbmodem1421', 115200)
+    #ser = serial.Serial('/dev/cu.usbmodem1421', 115200)
+    ser = serial.Serial('/dev/cu.usbmodem1421', 2500000)
 
 buffer = []
 # get SMORA's PID output
-Kp = 1
-Ki = 0
-Kd = 0
+Kp = 0.002       # 0.003
+Ki = 0.005       # 0.005
+Kd = 0          #
+Kf = 0.02       # 0.02
 frequency = 100
-initSpeed = 90.0
-finalSpeed = 180.0
+initSpeed = 100.0
+finalSpeed = 100.0
 duration = 2000
-set_PID_parameters(Kp, Ki, Kd, frequency)
+set_PID_parameters(Kp, Ki, Kd, Kf, frequency)
 retrieve_PID_samples(initSpeed, finalSpeed, duration)
 
 time = []
