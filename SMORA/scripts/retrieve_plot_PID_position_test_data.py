@@ -59,10 +59,10 @@ elif SMORA == 'XL':
 
 buffer = []
 # get SMORA's PID output
-Kp = 30     # 5     # 40
-Ki = 15     # 1.1   # 1
-Kd = 1      # 0     # 1
-frequency = 500
+Kp = 1      # 5     # 40   # 60
+Ki = 0.2     # 1.1   # 1    # 1.1
+Kd = 0.01     # 0     # 1    $ 1.0
+frequency = 100
 initAngle = 90.0
 finalAngle = 180.0
 duration = 1000
