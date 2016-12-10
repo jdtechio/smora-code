@@ -40,7 +40,7 @@
 
 #define TESTPAD_2_PIN   9		// PA07 - not connected
 #define TESTPAD_4_PIN   22		// PA12 - not connected
-#define TESTPAD_5_PIN	38 		// PA13 - connected to pin 4 of half-duplex connector
+#define TESTPAD_5_PIN	38 		// PA13 - not connected
 #define TESTPAD_6_PIN   4		// PA08 - not connected
 
 
@@ -52,8 +52,8 @@
 #define SCL_PIN         21  	// PA23
 
 /* Serial baudrate */
-//#define SERIAL_BAUDRATE 1000000
-#define SERIAL_BAUDRATE 115200
+#define SERIAL_BAUDRATE 2500000
+//#define SERIAL_BAUDRATE 115200
 #define RX_PIN          31		// PB23
 #define TX_PIN          30		// PB22
 #define DIR_PIN         26		// PA27
