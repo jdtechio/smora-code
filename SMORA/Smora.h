@@ -13,6 +13,10 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
+#include "util.h"
+#include "PID.h"
+#include "eeprom.h"
+
 #if defined(ARDUINO_SAMD_ZERO) // Required for Serial on Zero based boards
     #include "defines_atsamd21g18a.h"
 #else
@@ -20,58 +24,13 @@
 #endif
 
 // ID of the settings block
-#define CONFIG_VERSION 20161202
+#define CONFIG_VERSION 20161210
 
-// Where to store the config data in EEPROM
-#define CONFIG_START 0
-
-typedef struct PIDstate {
-    float Input, Output, Reference;
-    float PIDOutput, FeedforwardOutput;
-    float error, previous_error;
-    float integrator;
-} PIDstate;
-
-typedef struct PID {
-    float Kp, Ki, Kd, Kf;
-    float integrator_limit;
-    float frequency;
-    PIDstate state;
-} PID;
-
-typedef struct PIVstate {
-    float Input, Output, Reference;
-    float PIVOutput, FeedforwardOutput;
-    float position_error, previous_position_error;
-    float speed_error, previous_speed_error;
-    float position, previous_position;
-    float speed, previous_speed;
-    float integrator;
-};
-
-typedef struct PIV {
-    float Kp, Ki, Kv, Kf;
-    float speed_limit;
-    float frequency;
-    PIVstate state;
-} PIV;
-
-typedef struct StoreStruct {
+typedef struct STORAGE {
     unsigned long version;
-    PID positionPID;
-    PID speedPID;
-    PIV speedPIV;
-} StoreStruct;
-
-typedef union byteFloat {
-    float F;
-    byte B[sizeof(float)];
-} byteFloat;
-
-typedef union byteInt {
-    int I;
-    byte B[sizeof(int)];
-} byteInt;
+    PID position;
+    PID speed;
+} STORAGE;
 
 typedef struct ATTITUDE {
     short ax, ay, az;
@@ -82,19 +41,12 @@ class SMORA {
     public:
         float temperature;
 
-        ATTITUDE motion;
+        ATTITUDE attitude;
 
-        StoreStruct storage = {
-          CONFIG_VERSION,
-          {40., 2., 1., 1.,  360.0, 100., {0., 0., 0.,   0., 0.,   0., 0.,   0.}},
-          {40., 2., 1., 1.,  250.0, 100., {0., 0., 0.,   0., 0.,   0., 0.,   0.}},
-          
-          { 1., 1., 1., 0.,  100.,  100., {0., 0., 0.,   0., 0.,   0., 0.,   0., 0.,   0., 0.,  0., 0.,  0.}}
-        };
+        STORAGE storage = { .version=CONFIG_VERSION };
 
-        PID* positionPID = &(storage).positionPID;
-        PID* speedPID = &(storage).speedPID;
-        PIV* speedPIV = &(storage).speedPIV;
+        PID* speedPID = &(storage).speed;
+        PID* positionPID = &(storage).speed;
 
         SMORA();
         //~SMORA();
@@ -105,14 +57,6 @@ class SMORA {
         byte halfDuplexPeek(void);
         int halfDuplexAvailable(void);
 
-        byte getEEPROMHighAddress(int memAddress);
-        byte getEEPROMLowAddress(int memAddress);
-        byte getEEPROMDevAddress(int memAddress);
-        void writeEEPROM(int memAddress, const byte data);
-        void writeEEPROM(int memAddress, const byte* buffer, int length);
-        byte readEEPROM(int memAddress);
-        void readEEPROM(int memAddress, byte* buffer, int length);
-
         int loadConfig();
         int saveConfig();
         int getConfigSize();
@@ -121,7 +65,6 @@ class SMORA {
         void ledAnimation(unsigned int speed);
         void testSensors(void);
         
-        float unwrapAngleDegrees(float prevAngle, float newAngle);
         float getVelocity(float prevAngle, float newAngle, float interval);
         float getAngle_Degrees(void);
         float getAngle_Radians(void);
@@ -147,28 +90,11 @@ class SMORA {
 
         void testMotorIVW();
 
-        void setPIDGains(PID* controller, float Kp, float Ki, float Kd, float Kf);
-        void setPIDFrequency(PID* controller, float frequency);
-        void resetPIDIntegrator(PID* controller);
-        void computePID(PID* controller, float input, float reference);
-        int convertPIDOutputToPWM(PID* controller);
+        //void testPositionPID(float initAngle, float finalAngle, unsigned int duration_ms);
+        //void positionPIDTest(void);
 
-        void testPositionPID(float initAngle, float finalAngle, unsigned int duration_ms);
-        void positionPIDTest(void);
-
-        void testSpeedPID(float initSpeed, float finalSpeed, unsigned int duration_ms);
-        void speedPIDTest(void);
-
-        void setPIVGains(PIV* controller, float Kp, float Ki, float Kv, float Kf);
-        void setPIVFrequency(PIV* controller, float frequency);
-        void setPIVSpeed(PIV* controller, float speed);
-        void resetPIVIntegrator(PIV* controller);
-        void computePIV(PIV* controller, float reference, float input);
-        int convertPIVOutputToPWM(PIV* controller);
-
-        void testspeedPIV(float initAngle, float finalAngle, unsigned int duration_ms);
-        void speedPIVTest(void);
-
+        void SpeedPIDLoop(float initSpeed, float finalSpeed, unsigned int duration_ms);
+        void speedTestParser(void);
 };
 
 #endif // SMORA_H

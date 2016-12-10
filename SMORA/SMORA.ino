@@ -5,10 +5,18 @@ SMORA smora;
 void setup() {
   smora.init();
   //smora.testSensors();
-  //smora.loadConfig();
-  //int size = smora.saveConfig();
+  /*
+  smora.speedPID->setPIDGains(1.0, 2.0, 3.0, 4.0);
+  int size = smora.saveConfig();
+  NativeSerial.print("Saved: "); NativeSerial.println(size);
+  int size = smora.loadConfig();
+  NativeSerial.print("Loaded: "); NativeSerial.println(size);
+  float Kp = smora.speedPID->pid.Kp;
+  NativeSerial.print("Kp: "); NativeSerial.println(Kp);
+  */
   NativeSerial.println("* Ready");
 }
+
 
 void loop() {
   // A-rev.1 - arduino nano 57600
@@ -16,8 +24,26 @@ void loop() {
   // B-rev.1 - arduino zero (Native USB)
   
   //smora.positionPIDTest();
-  smora.speedPIDTest();
-  //smora.speedPIVTest();
+  smora.speedTestParser();
+
+  /*
+  unsigned long t0, t1; // us
+
+  t0 = micros();
+  float temperature = smora.getTemperature();
+  t1 = micros();
+  NativeSerial.print("Took "); NativeSerial.print(t1-t0); NativeSerial.print(" to getTemperature(): "); NativeSerial.println(temperature);
+
+  t0 = micros();
+  smora.requestTemperatureConversion();
+  t1 = micros();
+  NativeSerial.print("Took "); NativeSerial.print(t1-t0); NativeSerial.println(" to requestTemperatureConversion()");
+
+  NativeSerial.println();
+  delay(2000);
+  */
+        
+  
   
   /*
   // code for half-duplex transmitter
