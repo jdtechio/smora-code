@@ -11,7 +11,7 @@ typedef struct STATE {
 
 typedef struct CONTROLLER {
     float Kp, Ki, Kd, Kf;
-    float limit;
+    float limit_max, limit_min;
     float frequency;
     STATE state;
 } CONTROLLER;
@@ -26,7 +26,7 @@ class PID {
     	void setGains(float Kp, float Ki, float Kd, float Kf);
         void setFrequency(float frequency);
         float getFrequency(void);
-        void setOutputLimit(float limit);
+        void setOutputLimit(float limit_max, float limit_min);
         void resetIntegrator(void);
         float getOutput(void);
         float compute(float ref, float y);

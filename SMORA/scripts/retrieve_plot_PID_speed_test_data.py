@@ -65,14 +65,14 @@ elif SMORA == 'XL':
 
 buffer = []
 # get SMORA's PID output
-Kp = 0.002       # 0.003
+Kp = 0.003       # 0.003
 Ki = 0.005       # 0.005
-Kd = 0          #
-Kf = 0.02       # 0.02
+Kd = 0           #
+Kf = 0.02        # 0.02
 frequency = 100
 initSpeed = 100.0
-finalSpeed = 100.0
-duration = 2000
+finalSpeed = 0.0
+duration = 1000
 set_PID_parameters(Kp, Ki, Kd, Kf, frequency)
 retrieve_PID_samples(initSpeed, finalSpeed, duration)
 

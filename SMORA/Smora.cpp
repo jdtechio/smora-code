@@ -143,7 +143,7 @@ void SMORA::init(){
                     TCC_CTRLA_ENABLE;             // Enable the TCC2 output
   while (TCC2->SYNCBUSY.bit.ENABLE);              // Wait for synchronization
 #else
-  Timer1.initialize(50); //uS
+  Timer1.initialize(50); //us
   Timer1.pwm(TIMER1_B_PIN, 0);
   //Timer1.attachInterrupt(timer_interrupt);
 #endif
@@ -707,7 +707,7 @@ void SMORA::SpeedPIDLoop(float initSpeed, float finalSpeed, unsigned int duratio
       getCurrent_mA();
 
       output = speedPID->compute(desired_speed, current_speed);
-      speedPID->setOutputLimit( getVoltage_V() );
+      speedPID->setOutputLimit( getVoltage_V(), 0.0 );
       pwm = speedPID->convertOutputToPWM();
       setMotorPWM(pwm);
 
@@ -773,7 +773,7 @@ void SMORA::speedTestParser(){
       byteFloat finalSpeed = { .B={NativeSerial.read(), NativeSerial.read(), NativeSerial.read(), NativeSerial.read()} };
       byteInt duration = { .B={NativeSerial.read(), NativeSerial.read()} };
 
-      speedPID->setOutputLimit(getVoltage_V());
+      speedPID->setOutputLimit(getVoltage_V(), 0.0);
       SpeedPIDLoop(initSpeed.F, finalSpeed.F, duration.I);
       speedPID->resetIntegrator();
     }

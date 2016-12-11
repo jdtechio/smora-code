@@ -2,7 +2,8 @@
 
 PID::PID(){
 	pid.Kp = pid.Ki = pid.Kd = pid.Kf = 0.0;
-	pid.limit = 5.0;			// Volts
+	pid.limit_max = 5.0;		// Volts
+	pid.limit_min = 0.0;		// Volts
 	pid.frequency = 100.0;		// Hertz
 	
 	state.Reference = state.Output = state.Y = 0.0;
@@ -26,8 +27,9 @@ float PID::getFrequency(){
   	return pid.frequency;
 }
 
-void PID::setOutputLimit(float limit){
- 	pid.limit = limit;
+void PID::setOutputLimit(float limit_max, float limit_min){
+ 	pid.limit_max = limit_max;
+ 	pid.limit_min = limit_min;
 }
 
 void PID::resetIntegrator(){
@@ -50,9 +52,9 @@ float PID::compute(float ref, float y){
 	state.integrator += state.error / pid.frequency;
 
 	// Anti-windup
-	if (state.integrator * pid.Ki > pid.limit){
+	if (state.integrator * pid.Ki > pid.limit_max){
 		state.integrator = state.previous_integrator;
-	} else if (state.integrator * pid.Ki < -pid.limit){
+	} else if (state.integrator * pid.Ki < pid.limit_min){
 	    state.integrator = state.previous_integrator;
 	}
 
@@ -68,5 +70,9 @@ float PID::compute(float ref, float y){
 }
 
 int PID::convertOutputToPWM(){
- 	return (int)(state.Output/pid.limit*1023.0);
+	if (state.Output > pid.limit_min)
+		return (int)(state.Output/pid.limit_max*1023.0);
+	if (pid.limit_min != 0.0)
+ 		return (int)(state.Output/pid.limit_min*1023.0);
+ 	return 0;
 }
