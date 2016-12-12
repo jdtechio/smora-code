@@ -1,10 +1,8 @@
 #ifndef PID_H
 #define PID_H 
 
-#include "util.h"
-
 typedef struct STATE {
-    float Reference, Output, Y;
+    float Reference, Output;
     float error, previous_error;
     float integrator, previous_integrator;
 } STATE;
@@ -29,8 +27,8 @@ class PID {
         void setOutputLimit(float limit_max, float limit_min);
         void resetIntegrator(void);
         float getOutput(void);
-        float compute(float ref, float y);
-        int convertOutputToPWM(void);
+        float compute(float ref, float error);
+        int convertOutputToPWM(float limit);
 };
 
 #endif // PID_H

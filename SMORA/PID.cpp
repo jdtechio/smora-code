@@ -2,14 +2,11 @@
 
 PID::PID(){
 	pid.Kp = pid.Ki = pid.Kd = pid.Kf = 0.0;
-	pid.limit_max = 5.0;		// Volts
-	pid.limit_min = 0.0;		// Volts
+	pid.limit_max = pid.limit_min = 0.0;
 	pid.frequency = 100.0;		// Hertz
-	
-	state.Reference = state.Output = state.Y = 0.0;
-
 	state.error = state.previous_error = 0.0;
 	state.integrator = state.previous_integrator = 0.0;
+	state.Reference = state.Output = 0.0;
 }
 
 void PID::setGains(float Kp, float Ki, float Kd, float Kf){
@@ -40,13 +37,11 @@ float PID::getOutput(){
  	return state.Output;
 }
 
-float PID::compute(float ref, float y){
+float PID::compute(float ref, float error){
 	state.Reference = ref;
-	state.Y = y;
 
 	state.previous_error = state.error;
-	//state.error = state.Input - state.Y;
-	state.error = diffAngleDegrees(state.Y, state.Reference);
+	state.error = error;
 
 	state.previous_integrator = state.integrator;
 	state.integrator += state.error / pid.frequency;
@@ -69,10 +64,12 @@ float PID::compute(float ref, float y){
 	return state.Output;
 }
 
-int PID::convertOutputToPWM(){
-	if (state.Output > pid.limit_min)
-		return (int)(state.Output/pid.limit_max*1023.0);
-	if (pid.limit_min != 0.0)
- 		return (int)(state.Output/pid.limit_min*1023.0);
- 	return 0;
+int PID::convertOutputToPWM(float limit){
+	if (state.Output > pid.limit_max){
+		return (int)(pid.limit_max/limit*1023.0);
+	} else if (state.Output < pid.limit_min){
+		return (int)(pid.limit_min/limit*1023.0);
+	}
+	
+	return (int)(state.Output/limit*1023.0);
 }

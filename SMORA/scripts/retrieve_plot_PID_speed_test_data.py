@@ -39,15 +39,18 @@ def retrieve_PID_samples(initSpeed, finalSpeed, duration):
         temperature = float(data[4])
         cycle_duration = int(data[5])
         dtMicros = int(data[6])
+        voltage, current = float(data[7]), float(data[8])
         buffer.append({
             'time': millis,
             'goalSpeed': goalSpeed,
             'currentSpeed': currentSpeed,
             'pidOutput': pidOutput,
             'temperature': temperature,
-            'cycle_duration': cycle_duration
+            'cycle_duration': cycle_duration,
+            'voltage': voltage,
+            'current': current,
         })
-        print count, '\t', millis, '\t', goalSpeed, '\t', currentSpeed, '\t', pidOutput, '\t', temperature, '\t', cycle_duration/1000.0, 'ms', '\t', dtMicros, 'us'
+        print count, '\t', millis, '\t', goalSpeed, '\t', currentSpeed, '\t', pidOutput, '\t', temperature, '\t', cycle_duration/1000.0, 'ms', '\t', dtMicros, 'us', '\t', current, 'mA \t', voltage, 'V \t'
         count += 1
 
 if SMORA == 'L':
@@ -65,13 +68,13 @@ elif SMORA == 'XL':
 
 buffer = []
 # get SMORA's PID output
-Kp = 0.003       # 0.003
-Ki = 0.005       # 0.005
+Kp = 0       # 0.003
+Ki = 0       # 0.005
 Kd = 0           #
 Kf = 0.02        # 0.02
 frequency = 100
-initSpeed = 100.0
-finalSpeed = 0.0
+initSpeed = 200.0
+finalSpeed = 150.0
 duration = 1000
 set_PID_parameters(Kp, Ki, Kd, Kf, frequency)
 retrieve_PID_samples(initSpeed, finalSpeed, duration)
@@ -81,12 +84,14 @@ goalSpeed = []
 currentSpeed = []
 pidOutput = []
 temperature = []
+current = []
 for sample in buffer:
     time.append(sample['time'])
     goalSpeed.append(sample['goalSpeed'])
     currentSpeed.append(sample['currentSpeed'])
     pidOutput.append(sample['pidOutput'])
     temperature.append(sample['temperature'])
+    current.append(sample['current'])
 
 for index in range(1,len(time)):
     time[index] = time[index] - time[0]
@@ -94,11 +99,13 @@ time[0] = 0
 
 title = "Kp=%.3f, Ki=%.3f, Kd=%.3f, F=%dHz, T=%.3f, d=%d, speed0=%.2f, speed1=%.2f" % (Kp, Ki, Kd, frequency, temperature[-1], duration, initSpeed, finalSpeed)
 sci.xtitle(title)
-sci.subplot(2,1,1);
+sci.subplot(3,1,1);
 sci.plot(time, goalSpeed, 'b')
 sci.plot(time, currentSpeed, 'r')
-sci.subplot(2,1,2);
+sci.subplot(3,1,2);
 sci.plot(time, pidOutput, 'g')
+sci.subplot(3,1,3);
+sci.plot(time, current, 'b')
 #sci.plot(time, temperature)
 #sci.xs2pdf(0, '%s.pdf'%title)
 raw_input("Press Enter to continue...")

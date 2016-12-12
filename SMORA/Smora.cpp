@@ -669,7 +669,7 @@ void SMORA::SpeedPIDLoop(float initSpeed, float finalSpeed, unsigned int duratio
   unsigned long count = 0;
   int pwm = 0;                                        // max 1023
   float output = 0;                                   // Volts
-  float current_speed=0, desired_speed=0;
+  float current_speed=0, desired_speed=0, error=0;
   float current_position=0, previous_position=0;
   unsigned char state = 0;
 
@@ -677,6 +677,8 @@ void SMORA::SpeedPIDLoop(float initSpeed, float finalSpeed, unsigned int duratio
   previousMicros = previousdtMicros = micros() - intervalMicros;
   previousTemperatureMicros = micros();
   previous_position = current_position = getAngle_Degrees();
+
+  float current, bus_voltage;
   
 
   setRGB(RED);
@@ -704,11 +706,12 @@ void SMORA::SpeedPIDLoop(float initSpeed, float finalSpeed, unsigned int duratio
       previousdtMicros = dtMicros;
 
       // might be needed eventually so it's included here to take some extra time
-      getCurrent_mA();
+      current = getCurrent_mA();
+      bus_voltage = getVoltage_V();
 
-      output = speedPID->compute(desired_speed, current_speed);
-      speedPID->setOutputLimit( getVoltage_V(), 0.0 );
-      pwm = speedPID->convertOutputToPWM();
+      error = diffAngleDegrees(current_speed, desired_speed);
+      output = speedPID->compute(desired_speed, error);
+      pwm = speedPID->convertOutputToPWM(bus_voltage);
       setMotorPWM(pwm);
 
       // read temperature every second
@@ -730,7 +733,9 @@ void SMORA::SpeedPIDLoop(float initSpeed, float finalSpeed, unsigned int duratio
       NativeSerial.print(speedPID->getOutput()); NativeSerial.print(",");
       NativeSerial.print(temperature); NativeSerial.print(",");
       NativeSerial.print(micros()-previousMicros); NativeSerial.print(",");
-      NativeSerial.print(dt); NativeSerial.println();
+      NativeSerial.print(dt); NativeSerial.print(",");
+      NativeSerial.print(bus_voltage); NativeSerial.print(",");
+      NativeSerial.print(current); NativeSerial.println();
 
       count++;
     }
@@ -773,7 +778,9 @@ void SMORA::speedTestParser(){
       byteFloat finalSpeed = { .B={NativeSerial.read(), NativeSerial.read(), NativeSerial.read(), NativeSerial.read()} };
       byteInt duration = { .B={NativeSerial.read(), NativeSerial.read()} };
 
+      // Limit PID between 0V and the supply voltage
       speedPID->setOutputLimit(getVoltage_V(), 0.0);
+
       SpeedPIDLoop(initSpeed.F, finalSpeed.F, duration.I);
       speedPID->resetIntegrator();
     }

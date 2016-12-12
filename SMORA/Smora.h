@@ -46,7 +46,7 @@ class SMORA {
         STORAGE storage = { .version=CONFIG_VERSION };
 
         PID* speedPID = &(storage).speed;
-        PID* positionPID = &(storage).speed;
+        PID* positionPID = &(storage).position;
 
         SMORA();
         //~SMORA();
